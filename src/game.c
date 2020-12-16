@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -19,15 +20,16 @@
 #define ERR(source) (perror(source),\
     fprintf(stderr,"%s:%d\n",__FILE__,__LINE__),\
     exit(EXIT_FAILURE))
-#define BUFSIZE 25
-
+#define BUF_SIZE 256
+#define QUOTE(str) #str
+#define EXPAND_AND_QUOTE(str) QUOTE(str)
 
 void gamegenerate(Game_t *gra)
 {
     char* values;
     int n;
-    char filename[BUFSIZE];
-    scanf("%s",filename);
+    char filename[BUF_SIZE+1];
+    scanf("%"EXPAND_AND_QUOTE(BUF_SIZE)"s",filename);
     values = filetomap(filename,&n);
     Room_t *rooms = malloc(sizeof(Room_t) * n);
     if(rooms == NULL) ERR("malloc");
@@ -36,6 +38,8 @@ void gamegenerate(Game_t *gra)
     {
         rooms[i].items[0].itemnr=0;
         rooms[i].items[1].itemnr=0;
+        rooms[i].items[0].dest_room=0;
+        rooms[i].items[1].dest_room=0;
         rooms[i].nextrooms=malloc(sizeof(char)*n);
         if(rooms[i].nextrooms==NULL)
             ERR("malloc");
@@ -91,7 +95,7 @@ void gamegenerate(Game_t *gra)
 }
 void game(Game_t *game,char *backup)
 {
-    char buf[BUFSIZE]; int end; pthread_t autos,swaps;
+    char buf[BUF_SIZE+1]; int end; pthread_t autos,swaps;
     Auto_t a; a.g=game; a.filename=backup;
     autos=launchautosave(&a);
     swaps=launchsigusr1(game);
@@ -99,7 +103,7 @@ void game(Game_t *game,char *backup)
     for(;;)
     {
         roominfo(game);
-        scanf("%s",buf);
+        scanf("%"EXPAND_AND_QUOTE(BUF_SIZE)"s",buf);
         pthread_mutex_lock(game->save);
         if(strcmp(buf,"move-to")==0)
             {
@@ -120,7 +124,7 @@ void game(Game_t *game,char *backup)
             }
         else if (strcmp(buf,"save")==0)
             {
-                scanf("%s",buf);
+                scanf("%"EXPAND_AND_QUOTE(BUF_SIZE)"s",buf);
                 if(pthread_kill(autos,SIGUSR2)) ERR("kill");
                 save(game,buf);
             }
@@ -134,6 +138,7 @@ void game(Game_t *game,char *backup)
             {
                 closethread(autos);
                 closethread(swaps);
+                free(a.filename);
                 quit(game);
                 return;
             }
@@ -145,32 +150,21 @@ void game(Game_t *game,char *backup)
 void save(Game_t *g,char *filename)
 {
     int fd,pom;
-    fd=open(filename,O_CREAT|O_WRONLY,0777);
-    if(fd<0) ERR("open");
-    if((pom=write(fd,&g->roomcount,sizeof(int)))!=sizeof(int))
+    if((fd=TEMP_FAILURE_RETRY(open(filename,O_CREAT|O_WRONLY,0777)))<0) ERR("open");
+    if((pom=bulk_write(fd,(char*)&g->roomcount,sizeof(int)))<0)
         ERR("write");
-    if((pom=write(fd,&g->currentroom,sizeof(int)))!=sizeof(int))
+    if((pom=bulk_write(fd,(char*)&g->currentroom,sizeof(int)))<0)
         ERR("write");
-    for(int i=0;i<2;i++)
-    {
-        if((pom=write(fd,&g->pocket[i].itemnr,sizeof(int)))!=sizeof(int))
+    if((pom=bulk_write(fd,(char*)&g->pocket,sizeof(Item_t)*2))<0)
             ERR("write");
-        if((pom=write(fd,&g->pocket[i].dest_room,sizeof(int)))!=sizeof(int))
-            ERR("write");
-    }
     for(int i=0;i<g->roomcount;i++)
     {
-        for(int j=0;j<2;j++)
-        {
-            if((pom=write(fd,&g->rooms[i].items[j].itemnr,sizeof(int)))!=sizeof(int))
-                ERR("write");
-            if((pom=write(fd,&g->rooms[i].items[j].dest_room,sizeof(int)))!=sizeof(int))
-                ERR("write");
-        }
-        if((pom=write(fd,g->rooms[i].nextrooms,g->roomcount))!=g->roomcount)
+        if((pom=bulk_write(fd,(char*)&g->rooms[i].items,sizeof(Item_t)*2))<0)
+            ERR("write");
+        if((pom=bulk_write(fd,g->rooms[i].nextrooms,g->roomcount))<0)
             ERR("write");
     }
-    if(close(fd)) ERR("close");
+    if(TEMP_FAILURE_RETRY(close(fd))) ERR("close");
 }
 
 void quit(Game_t *g)
@@ -184,39 +178,30 @@ void quit(Game_t *g)
 }
 void load(Game_t *g)
 {
-    char buf[BUFSIZE];
+    char buf[BUF_SIZE];
     int pom;
-    scanf("%s",buf);
-    int fd = open(buf,O_RDONLY);
-    if((pom=read(fd,&g->roomcount,sizeof(int)))!=sizeof(int))
+    scanf("%"EXPAND_AND_QUOTE(BUF_SIZE)"s",buf);
+    int fd;
+    if((fd =TEMP_FAILURE_RETRY(open(buf,O_RDONLY)))<0) ERR("open");
+    if((pom=bulk_read(fd,(char*)&g->roomcount,sizeof(int)))<0)
         ERR("write");
-    if((pom=read(fd,&g->currentroom,sizeof(int)))!=sizeof(int))
+    if((pom=bulk_read(fd,(char*)&g->currentroom,sizeof(int)))<0)
         ERR("write");
-    for(int i=0;i<2;i++)
-    {
-        if((pom=read(fd,&g->pocket[i].itemnr,sizeof(int)))!=sizeof(int))
+    if((pom=bulk_read(fd,(char*)&g->pocket,sizeof(Item_t)*2))<0)
             ERR("write");
-        if((pom=read(fd,&g->pocket[i].dest_room,sizeof(int)))!=sizeof(int))
-            ERR("write");
-    }
     g->rooms=malloc(sizeof(Room_t)*g->roomcount);
     if(g->rooms==NULL)
         ERR("malloc");
     for(int i=0;i<g->roomcount;i++)
     {
-        for(int j=0;j<2;j++)
-        {
-            if((pom=read(fd,&g->rooms[i].items[j].itemnr,sizeof(int)))!=sizeof(int))
-                ERR("write");
-            if((pom=read(fd,&g->rooms[i].items[j].dest_room,sizeof(int)))!=sizeof(int))
-                ERR("write");
-        }
+        if((pom=bulk_read(fd,(char*)&g->rooms[i].items,sizeof(Item_t)*2))<0)
+            ERR("write");
         g->rooms[i].nextrooms=malloc(sizeof(char)*g->roomcount);
         if(g->rooms[i].nextrooms==NULL)
             ERR("malloc");
-        if((pom=read(fd,g->rooms[i].nextrooms,g->roomcount))!=g->roomcount)
+        if((pom=bulk_read(fd,g->rooms[i].nextrooms,g->roomcount))<0)
             ERR("write");
     }
     pthread_mutex_init(g->save,NULL);
-    if((close(fd))) ERR("close");
+    if(TEMP_FAILURE_RETRY(close(fd))) ERR("close");
 }

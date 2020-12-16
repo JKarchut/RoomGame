@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -lpthread -lm
+CFLAGS=-Wall -lpthread -lm -g
 FILES=main.o map.o game.o gamecommands.o gamethreads.o
 TARGET=main
 SRC_DIR := src

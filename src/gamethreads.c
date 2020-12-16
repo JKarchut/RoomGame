@@ -13,6 +13,7 @@
     fprintf(stderr,"%s:%d\n",__FILE__,__LINE__),\
     exit(EXIT_FAILURE))
 #define MAX_LENGTH 1000
+#define BUF_SIZE 256
 void* autosave(void* p)
 {
     pthread_setcancelstate(PTHREAD_CANCEL_DEFERRED,NULL);
@@ -50,10 +51,12 @@ char* chooseautosavepath(char* path)
     }
     if(path==NULL)
     {
-        path=malloc(sizeof(char)*16);
+        path=malloc(sizeof(char)*BUF_SIZE);
         if(path==NULL)
             ERR("malloc");
-        strcpy(path,".game-autosave");
+        strcpy(path,"/home/");
+        strcat(path,getenv("USER"));
+        strcat(path,"/.game-autosave");
     }
     return path;
 }
@@ -88,10 +91,11 @@ void findpath(Game_t *g,int dest,int k)
         if(cur==NULL)
             continue;
         if(min>cur[0])
-            {
+        {
                 min=cur[0];
+                free(ret);
                 ret=cur;
-            }
+        }
         else
         {
             free(cur);
@@ -107,6 +111,7 @@ void findpath(Game_t *g,int dest,int k)
         for(int i =1 ; i<=ret[0];i++)
             printf("%d ",ret[i]);
         printf("\n");
+        free(ret);
     }
    
     

@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -7,16 +8,47 @@
 #include <string.h>
 #include <dirent.h>
 #include <errno.h>
-#include "map.h"
-
+#define BUF_SIZE 256
+#define QUOTE(str) #str
+#define EXPAND_AND_QUOTE(str) QUOTE(str)
 #define ERR(source) (perror(source),\
     fprintf(stderr,"%s:%d\n",__FILE__,__LINE__),\
     exit(EXIT_FAILURE))
+#include "map.h"
+
+ssize_t bulk_read(int fd,char *buf, size_t count)
+{
+    ssize_t c;
+    ssize_t len=0;
+    do{
+        c=TEMP_FAILURE_RETRY(read(fd,buf,count));
+        if(c<0) return c;
+        if(c==0) return len;
+        buf+=c;
+        len+=c;
+        count-=c;
+    }while(count>0);
+    return len;
+}
+ssize_t bulk_write(int fd,char *buf, size_t count)
+{
+    ssize_t c;
+    ssize_t len=0;
+    do{
+        c=TEMP_FAILURE_RETRY(write(fd,buf,count));
+        if(c<0) return c;
+        buf+=c;
+        len+=c;
+        count-=c;
+    }while(count>0);
+    return len;
+}
 void generatemap()
 {
     int n;
-    char buf[25];
-    scanf("%d %24s",&n,buf);
+    char buf[BUF_SIZE+1];
+    scanf("%d",&n);
+    scanf("%"EXPAND_AND_QUOTE(BUF_SIZE)"s",buf);
     char **value = malloc(sizeof(char*)*n);
     if(value==NULL)
         ERR("malloc"); 
@@ -53,58 +85,71 @@ void generatemap()
 void maptofile(char** values,char* filename,int n)
 {
     int pom;
-    int fd = open(filename,O_CREAT|O_WRONLY,0777);
-    if(fd<0) ERR("open");
-    if((pom=write(fd,&n,sizeof(int)))!=sizeof(int))
+    int fd; 
+    if((fd=TEMP_FAILURE_RETRY(open(filename,O_CREAT|O_WRONLY,0777)))<0) ERR("open");
+    if((pom=bulk_write(fd,(char*)&n,sizeof(int)))<0)
         ERR("write");
     for(int i=0;i<n;i++)
         {
-            if((pom=write(fd,values[i],n))!=n)
-                ERR("write");
+            if((pom=bulk_write(fd,values[i],n*sizeof(char)))<0) ERR("write");
             free(values[i]);
         }
-    if((close(fd))) ERR("close");
+    if(TEMP_FAILURE_RETRY(close(fd))) ERR("close");
     free(values);
     printf("zapisano mape do %s\n",filename);
 }
 char* filetomap(char *filename,int *n)
 {
-    int fd = open(filename,O_RDONLY);
-    read(fd,n,sizeof(int));
+    int fd;
+    if((fd = TEMP_FAILURE_RETRY(open(filename,O_RDONLY)))<0) ERR("open");
+    if((bulk_read(fd,(char*)n,sizeof(int)))<0) ERR("read");
     char* values = malloc(sizeof(char)* (*n) * (*n));
     if(values==NULL)
         ERR("malloc"); 
-    if(read(fd, values, *n * *n)!= *n * *n) ERR("read");
-    close(fd);
+    if((bulk_read(fd, values, *n * *n))<0) ERR("read");
+    if(TEMP_FAILURE_RETRY(close(fd))) ERR("close");
     return values;
 }
 void mapfromtree()
 {
-    char buf[BUF_SIZE];
-    char dest[BUF_SIZE];
-    scanf("%s %s",buf,dest);
-    char names[BUF_SIZE][BUF_SIZE];
-    char values[BUF_SIZE][BUF_SIZE];
+    char buf[BUF_SIZE+1];
+    char dest[BUF_SIZE+1];
+    char path[BUF_SIZE];
+    scanf("%"EXPAND_AND_QUOTE(BUF_SIZE)"s",buf);
+    scanf("%"EXPAND_AND_QUOTE(BUF_SIZE)"s",dest);
     int n=1;
-    strcpy(names[0],buf);
-    chdir(buf);
-    rmft(names,values,&n,0);
-    char **val = malloc(sizeof(char*)*n);
-    if(val==NULL) ERR("malloc");
-    for(int i=0;i<n;i++)
+    TreeSearch_t tree;
+    tree.n=&n;
+    tree.names=malloc(sizeof(char*));
+    if(tree.names==NULL) ERR("malloc");
+    tree.names[0]=malloc(sizeof(BUF_SIZE));
+    if(tree.names[0]==NULL) ERR("malloc");
+    tree.values = malloc(sizeof(char*));
+    if(tree.values==NULL) ERR("malloc");
+    tree.values[0] = malloc(sizeof(char));
+    if(tree.values[0]==NULL) ERR("malloc");
+    tree.values[0][0]=0;
+    if(tree.values==NULL) ERR("malloc");
+    strcpy(tree.names[0],buf);
+    if(getcwd(path,BUF_SIZE)==NULL) ERR("getcwd");
+    if(chdir(buf)) ERR("chdir");
+    rmft(&tree,0);
+    if(chdir(path)) ERR("chdir");
+    for(int i=0;i<*tree.n;i++)
     {
-        val[i]=malloc(sizeof(char)*n);
-        if(val[i]==NULL)
-            ERR("malloc");
+        free(tree.names[i]);
     }
-    maptofile(val,dest,n);
+    free(tree.names);
+    maptofile(tree.values,dest,*tree.n);
 }
-void rmft(char names[BUF_SIZE][BUF_SIZE], char values[BUF_SIZE][BUF_SIZE], int *n,int prev)
+void rmft(TreeSearch_t* t,int prev) 
 {
-    char path[BUF_SIZE];int a1;
+    char path[BUF_SIZE];int a1; //rozmiar bufora jest rozmiaru tablicy d_name
     if(getcwd(path,BUF_SIZE)==NULL) ERR("getcwd");
     DIR *dirp;
-    int wheretogo[BUF_SIZE]; int x=0;
+    int *wheretogo; int x=0;
+    wheretogo=malloc(sizeof(int)*BUF_SIZE);
+    if(wheretogo==NULL) ERR("malloc");
     struct dirent *dp;
     struct stat filestat;
     if(NULL == (dirp = opendir("."))) ERR("opendir");
@@ -116,31 +161,48 @@ void rmft(char names[BUF_SIZE][BUF_SIZE], char values[BUF_SIZE][BUF_SIZE], int *
             if(lstat(dp->d_name,&filestat)) ERR("lstat");
             if(S_ISDIR(filestat.st_mode)&& (strcmp(dp->d_name,".") != 0) && (strcmp(dp->d_name,"..")!=0))
             {
-                for(int i =0;i<*n;i++)
+                for(int i =0;i<*t->n;i++)
                 {
-                    if(strcmp(names[i],dp->d_name)==0)
+                    if(strcmp(t->names[i],dp->d_name)==0)
                     {
                         a1=i;
                     }
                 }
                 if(a1==-1)
                     {
-                        a1=*n;
-                        strcpy(names[*n],dp->d_name);
-                        *n= *n + 1;
+                        a1=*(t->n);
+                        *(t->n)= *(t->n) + 1;
+                        t->names=realloc(t->names,*(t->n) * sizeof(char*));
+                        if(t->names==NULL) ERR("realloc");
+                        t->names[*(t->n)-1]=malloc(BUF_SIZE * sizeof(char));
+                        if(t->names[*(t->n)-1]==NULL) ERR("malloc");
+                        strcpy(t->names[*(t->n)-1],dp->d_name);
+                        (t->values)=realloc(t->values,*(t->n)*sizeof(char*));
+                        if(t->values==NULL) ERR("realloc");
+                        for(int i =0; i< *(t->n);i++)
+                        {
+                            (t->values[i])=realloc((t->values[i]),*(t->n)*sizeof(char));
+                            if(t->values[i]==NULL) ERR("realloc");
+                            t->values[i][*(t->n)-1]=0;
+                        }
+                        for(int i =0 ; i< *(t->n);i++)
+                        {
+                            t->values[*(t->n) - 1][i]=0;
+                        }
                     }
                 wheretogo[x]=a1;
                 x++;
-                values[prev][a1] = 1;
-                values[a1][prev] = 1;
+                t->values[prev][a1] = 1;
+                t->values[a1][prev] = 1;
             }
         }
     }while(dp!=NULL);
     if(closedir(dirp)) ERR("opendir");
     for(int i = 0; i< x; i++)
     {
-        if(chdir(names[wheretogo[i]])) ERR("chdir");
-        rmft(names,values,n,a1);
+        if(chdir(t->names[wheretogo[i]])) ERR("chdir");
+        rmft(t,wheretogo[i]);
         if(chdir(path)) ERR("chdir");
     }
+    free(wheretogo);
 }

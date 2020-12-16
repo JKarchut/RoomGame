@@ -11,6 +11,8 @@
     fprintf(stderr,"%s:%d\n",__FILE__,__LINE__),\
     exit(EXIT_FAILURE))
 #define BUFSIZE 25
+#define QUOTE(str) #str
+#define EXPAND_AND_QUOTE(str) QUOTE(str)
 void menu();
 
 int main(int argc,char **argv)
@@ -31,12 +33,12 @@ int main(int argc,char **argv)
 }
 void menu(char* backup)
 {
-        char buf[BUFSIZE];
+    char buf[BUFSIZE];
     Game_t gra;
     printf("Avaliable commands:\n1.map-from-tree\n2.generate-random-map\n3.start-game\n4.load-game\n5.exit\n");
     for(;;)
     {
-        scanf("%24s",buf);
+        scanf("%"EXPAND_AND_QUOTE(BUFSIZE)"s",buf);
         if(strcmp(buf,"map-from-tree")==0)
             mapfromtree();
         else if (strcmp(buf,"generate-random-map")==0)
