@@ -192,6 +192,12 @@ void rmft(TreeSearch_t* t,int prev)
                     }
                 wheretogo[x]=a1;
                 x++;
+                if(x%BUF_SIZE==0)
+                {
+                    wheretogo=realloc(wheretogo,sizeof(int)*(BUF_SIZE+x));
+                    if(wheretogo==NULL)
+                        ERR("realloc");
+                }
                 t->values[prev][a1] = 1;
                 t->values[a1][prev] = 1;
             }

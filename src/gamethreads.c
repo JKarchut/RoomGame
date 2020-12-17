@@ -14,6 +14,11 @@
     exit(EXIT_FAILURE))
 #define MAX_LENGTH 1000
 #define BUF_SIZE 256
+void mxunlock(void *p)
+{
+    Auto_t *t=p;
+    pthread_mutex_unlock(t->g->save);
+}
 void* autosave(void* p)
 {
     pthread_setcancelstate(PTHREAD_CANCEL_DEFERRED,NULL);
@@ -30,10 +35,12 @@ void* autosave(void* p)
         if(signo==SIGALRM)
         {
             pthread_mutex_lock(t->g->save);
+            pthread_cleanup_push(mxunlock,p);
+            pthread_testcancel();
             printf("Autosaving, please wait\n");
             save(t->g,t->filename);
             printf("Autosaving done,please continue\n");
-            pthread_mutex_unlock(t->g->save);
+            pthread_cleanup_pop(1);
         }
         else
         {
@@ -68,18 +75,13 @@ pthread_t launchautosave(Auto_t *arg)
     if(pthread_create(&tid,NULL,autosave,arg)) ERR("pthread");
     return tid;
 }
-void closethread(pthread_t tid)
-{
-    pthread_cancel(tid);
-    if(pthread_join(tid,NULL)) ERR("pthread_join");
-}
 void findpath(Game_t *g,int dest,int k)
 {
     pthread_t tids[k];
     Search_t base;
     base.stop=dest;
     base.game=g;
-    int *ret,*cur;
+    int *ret=NULL,*cur;
     int min=MAX_LENGTH+1;
     for(int i =0 ; i<k;i++)
     {
@@ -93,7 +95,8 @@ void findpath(Game_t *g,int dest,int k)
         if(min>cur[0])
         {
                 min=cur[0];
-                free(ret);
+                if(ret!=NULL)
+                    free(ret);
                 ret=cur;
         }
         else
@@ -159,7 +162,7 @@ void* swap(void* p)
     sigaddset(&mask,SIGUSR1);
     while(1)
     {
-        sigwait(&mask,&signo);
+        if((sigwait(&mask,&signo))) ERR("sigwait");
         if(signo==SIGUSR1);
         pthread_mutex_lock(t->save);
         it1=rand_r(&seed)%(t->roomcount*3/2 - 1)+1;

@@ -136,8 +136,11 @@ void game(Game_t *game,char *backup)
             }
         else if(strcmp(buf,"quit")==0)
             {
-                closethread(autos);
-                closethread(swaps);
+                pthread_cancel(autos);
+                pthread_cancel(swaps);
+                pthread_mutex_unlock(game->save);
+                if(pthread_join(autos,NULL)) ERR("pthread_join");
+                if(pthread_join(swaps,NULL)) ERR("pthread_join");
                 free(a.filename);
                 quit(game);
                 return;
