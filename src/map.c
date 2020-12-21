@@ -142,6 +142,25 @@ void mapfromtree()
     free(tree.names);
     maptofile(tree.values,dest,*tree.n);
 }
+void increasesize(TreeSearch_t* t)
+{
+    t->names=realloc(t->names,*(t->n) * sizeof(char*));
+    if(t->names==NULL) ERR("realloc");
+    t->names[*(t->n)-1]=malloc(BUF_SIZE * sizeof(char));
+    if(t->names[*(t->n)-1]==NULL) ERR("malloc");
+    (t->values)=realloc(t->values,*(t->n)*sizeof(char*));
+    if(t->values==NULL) ERR("realloc");
+    for(int i =0; i< *(t->n);i++)
+    {
+    (t->values[i])=realloc((t->values[i]),*(t->n)*sizeof(char));
+    if(t->values[i]==NULL) ERR("realloc");
+    t->values[i][*(t->n)-1]=0;
+    }
+    for(int i =0 ; i< *(t->n);i++)
+    {
+        t->values[*(t->n) - 1][i]=0;
+    }
+}
 void rmft(TreeSearch_t* t,int prev) 
 {
     char path[BUF_SIZE];int a1; //rozmiar bufora jest rozmiaru tablicy d_name
@@ -172,23 +191,9 @@ void rmft(TreeSearch_t* t,int prev)
                     {
                         a1=*(t->n);
                         *(t->n)= *(t->n) + 1;
-                        t->names=realloc(t->names,*(t->n) * sizeof(char*));
-                        if(t->names==NULL) ERR("realloc");
-                        t->names[*(t->n)-1]=malloc(BUF_SIZE * sizeof(char));
-                        if(t->names[*(t->n)-1]==NULL) ERR("malloc");
+                        increasesize(t);
                         strcpy(t->names[*(t->n)-1],dp->d_name);
-                        (t->values)=realloc(t->values,*(t->n)*sizeof(char*));
-                        if(t->values==NULL) ERR("realloc");
-                        for(int i =0; i< *(t->n);i++)
-                        {
-                            (t->values[i])=realloc((t->values[i]),*(t->n)*sizeof(char));
-                            if(t->values[i]==NULL) ERR("realloc");
-                            t->values[i][*(t->n)-1]=0;
-                        }
-                        for(int i =0 ; i< *(t->n);i++)
-                        {
-                            t->values[*(t->n) - 1][i]=0;
-                        }
+                        
                     }
                 wheretogo[x]=a1;
                 x++;

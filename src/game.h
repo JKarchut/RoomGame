@@ -17,7 +17,7 @@ typedef struct Game
     int roomcount;
     int currentroom;
     Item_t pocket[2];
-    pthread_mutex_t *save;
+    pthread_mutex_t *mxsave;
 }Game_t;
 void game(Game_t*,char*);
 void gamegenerate(Game_t *);

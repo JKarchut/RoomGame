@@ -17,7 +17,7 @@
 void mxunlock(void *p)
 {
     Auto_t *t=p;
-    pthread_mutex_unlock(t->g->save);
+    pthread_mutex_unlock(t->g->mxsave);
 }
 void* autosave(void* p)
 {
@@ -34,7 +34,7 @@ void* autosave(void* p)
         if(sigwait(&mask,&signo)) ERR("sigwait");
         if(signo==SIGALRM)
         {
-            pthread_mutex_lock(t->g->save);
+            pthread_mutex_lock(t->g->mxsave);
             pthread_cleanup_push(mxunlock,p);
             pthread_testcancel();
             printf("Autosaving, please wait\n");
@@ -163,8 +163,7 @@ void* swap(void* p)
     while(1)
     {
         if((sigwait(&mask,&signo))) ERR("sigwait");
-        if(signo==SIGUSR1);
-        pthread_mutex_lock(t->save);
+        pthread_mutex_lock(t->mxsave);
         it1=rand_r(&seed)%(t->roomcount*3/2 - 1)+1;
         it2=rand_r(&seed)%(t->roomcount*3/2 - 1)+1;
         while(it1==t->pocket[0].itemnr||it1==t->pocket[1].itemnr)
@@ -193,7 +192,7 @@ void* swap(void* p)
         t->rooms[it1room].items[it1nr].dest_room = t->rooms[it2room].items[it2nr].dest_room;
         t->rooms[it2room].items[it2nr].dest_room=pom;
         t->rooms[it2room].items[it2nr].itemnr=it1;
-        pthread_mutex_unlock(t->save);
+        pthread_mutex_unlock(t->mxsave);
     }
 }
 pthread_t launchsigusr1(Game_t* p)

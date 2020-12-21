@@ -9,6 +9,7 @@ void generatemap();
 void mapfromtree();
 void maptofile(char** values,char* filename,int n);
 char* filetomap(char *filename,int *n);
+void increasesize(TreeSearch_t* t);
 void rmft(TreeSearch_t* tree,int prev);
 void getcommand();
 ssize_t bulk_write(int fd,char *buf, size_t count);

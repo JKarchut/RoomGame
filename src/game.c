@@ -88,9 +88,9 @@ void gamegenerate(Game_t *gra)
     gra->pocket[1].itemnr=0;
     gra->roomcount=n;
     gra->rooms=rooms;
-    gra->save=malloc(sizeof(pthread_mutex_t));
-    if(gra->save==NULL) ERR(("malloc"));
-    pthread_mutex_init(gra->save,NULL);
+    gra->mxsave=malloc(sizeof(pthread_mutex_t));
+    if(gra->mxsave==NULL) ERR(("malloc"));
+    pthread_mutex_init(gra->mxsave,NULL);
     printf("game creation complete\n");
 }
 void game(Game_t *game,char *backup)
@@ -104,7 +104,7 @@ void game(Game_t *game,char *backup)
     {
         roominfo(game);
         scanf("%"EXPAND_AND_QUOTE(BUF_SIZE)"s",buf);
-        pthread_mutex_lock(game->save);
+        pthread_mutex_lock(game->mxsave);
         if(strcmp(buf,"move-to")==0)
             {
                 changeroom(game);
@@ -138,7 +138,7 @@ void game(Game_t *game,char *backup)
             {
                 pthread_cancel(autos);
                 pthread_cancel(swaps);
-                pthread_mutex_unlock(game->save);
+                pthread_mutex_unlock(game->mxsave);
                 if(pthread_join(autos,NULL)) ERR("pthread_join");
                 if(pthread_join(swaps,NULL)) ERR("pthread_join");
                 free(a.filename);
@@ -147,7 +147,7 @@ void game(Game_t *game,char *backup)
             }
         else
             printf("unknown command\n");
-        pthread_mutex_unlock(game->save);
+        pthread_mutex_unlock(game->mxsave);
     }
 }
 void save(Game_t *g,char *filename)
@@ -177,7 +177,7 @@ void quit(Game_t *g)
         free(g->rooms[i].nextrooms);
     }
     free(g->rooms);
-    pthread_mutex_destroy(g->save);
+    pthread_mutex_destroy(g->mxsave);
 }
 void load(Game_t *g)
 {
@@ -205,6 +205,6 @@ void load(Game_t *g)
         if((pom=bulk_read(fd,g->rooms[i].nextrooms,g->roomcount))<0)
             ERR("write");
     }
-    pthread_mutex_init(g->save,NULL);
+    pthread_mutex_init(g->mxsave,NULL);
     if(TEMP_FAILURE_RETRY(close(fd))) ERR("close");
 }

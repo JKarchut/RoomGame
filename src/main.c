@@ -22,7 +22,7 @@ int main(int argc,char **argv)
     sigaddset(&mask,SIGALRM);
     sigaddset(&mask,SIGUSR2);
     sigaddset(&mask,SIGUSR1);
-    sigprocmask(SIG_SETMASK,&mask,NULL);
+    sigprocmask(SIG_BLOCK,&mask,NULL);
     if(argc>=2)
         menu(argv[1]);
     else
