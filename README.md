@@ -226,8 +226,4 @@ Po uruchomieniu gry startowany jest również wątek, który nasłuchuje na sygn
 
 <div id="postamble" class="status">
 
-Created: 2020-12-07 pon 12:23
-
-[Validate](http://validator.w3.org/check?uri=referer)
-
 </div>
